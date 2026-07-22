@@ -1,0 +1,128 @@
+digraph MainProcess {
+    graph [
+        rankdir=TB,
+        bgcolor="#fbfaf7",
+        fontname="DejaVu Sans",
+        label="LangGraph Arithmetic Agent Flow",
+        labelloc=t,
+        fontsize=26,
+        fontcolor="#102a56",
+        nodesep=0.5,
+        ranksep=0.62,
+        pad=0.25,
+        splines=polyline,
+        ratio=compress,
+        size="14,9!",
+        dpi=140
+    ];
+
+    node [
+        shape=box,
+        style="rounded,filled",
+        fillcolor="#eaf3fb",
+        color="#2970b8",
+        fontname="DejaVu Sans",
+        fontsize=12,
+        fontcolor="#102a56",
+        penwidth=1.7,
+        margin="0.18,0.12"
+    ];
+
+    edge [
+        color="#18365f",
+        fontname="DejaVu Sans",
+        fontsize=10,
+        fontcolor="#18365f",
+        penwidth=1.5,
+        arrowsize=0.75
+    ];
+
+    start [label="Start CLI"];
+    setup [label="Load environment, model,\nand arithmetic tools"];
+    compile [label="Compile graph with\nPostgresSaver"];
+    input [label="User input"];
+    llm [label="LLM call"];
+    has_tools [
+        label="Any tool calls?",
+        shape=diamond,
+        style=filled,
+        fillcolor="#dff5ef",
+        color="#168173"
+    ];
+    protected [
+        label="Any protected tool?",
+        shape=diamond,
+        style=filled,
+        fillcolor="#dff5ef",
+        color="#168173"
+    ];
+
+    checkpoint [
+        label="Checkpoint + interrupt",
+        fillcolor="#fff1cc",
+        color="#df9200"
+    ];
+    review [
+        label="Human review",
+        fillcolor="#fff1cc",
+        color="#df9200"
+    ];
+    approve_reject [
+        label="Approve or reject",
+        fillcolor="#fff1cc",
+        color="#df9200"
+    ];
+    edit [
+        label="Edit request",
+        fillcolor="#fff1cc",
+        color="#df9200"
+    ];
+
+    tool_node [
+        label="ToolNode\n\nExecute direct/approved calls\nor turn rejection into an error",
+        fillcolor="#e8efff",
+        color="#4668c8"
+    ];
+    tool_message [label="ToolMessage"];
+    final [label="Final answer"];
+    usage [label="Usage summary"];
+    wait [label="Wait for next input"];
+    postgres [
+        label="PostgreSQL\ncheckpoints",
+        shape=cylinder,
+        style=filled,
+        fillcolor="#dcf3ed",
+        color="#168173"
+    ];
+
+    { rank=same; start; setup; compile; input; }
+    { rank=same; llm; has_tools; final; }
+    { rank=same; protected; usage; }
+    { rank=same; tool_node; checkpoint; wait; }
+    { rank=same; tool_message; review; postgres; }
+    { rank=same; approve_reject; edit; }
+
+    start -> setup -> compile -> input -> llm -> has_tools;
+    has_tools -> final [label="No"];
+    final -> usage -> wait -> input;
+
+    has_tools -> protected [label="Yes"];
+    protected -> tool_node [label="No / direct"];
+    protected -> checkpoint [label="Yes"];
+    checkpoint -> review [label="pause"];
+    checkpoint -> postgres [
+        label="save / load",
+        dir=both,
+        style=dashed,
+        color="#168173",
+        fontcolor="#168173"
+    ];
+
+    review -> approve_reject [label="approve / reject"];
+    approve_reject -> tool_node [label="resume"];
+    review -> edit [label="edit"];
+    edit -> llm [label="resume with feedback", color="#c64b3c", fontcolor="#c64b3c"];
+
+    tool_node -> tool_message;
+    tool_message -> llm [label="loop with result", color="#c64b3c", fontcolor="#c64b3c"];
+}
